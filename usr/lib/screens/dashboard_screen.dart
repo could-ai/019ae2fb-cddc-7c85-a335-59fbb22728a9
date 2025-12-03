@@ -1,5 +1,5 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -9,309 +9,257 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  // AI State
-  bool _isAiActive = false;
-  bool _isBaseOpen = true;
-  bool _isInBase = true;
-  int _moneyCollected = 0;
-  
-  // Timers
-  Timer? _collectionTimer;
-  Timer? _baseTimer;
-  int _baseTimerSeconds = 60; // Default 60 seconds before closing base
-  int _currentTimerSeconds = 60;
+  // Configuration State
+  bool _autoCollect = true;
+  double _collectionInterval = 1.0; // Seconds
+  bool _autoCloseBase = true;
+  double _baseTimerMinutes = 5.0;
+  bool _autoLeaveOnJoin = true;
+  String _generatedScript = "";
 
-  // Logs
-  final List<String> _logs = [];
-  final ScrollController _scrollController = ScrollController();
+  final TextEditingController _remoteNameController = TextEditingController(text: "CollectMoneyEvent");
 
-  @override
-  void dispose() {
-    _stopAllActions();
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _addLog(String message) {
-    setState(() {
-      _logs.add("[${DateTime.now().toIso8601String().substring(11, 19)}] $message");
-    });
-    // Auto-scroll to bottom
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
-
-  void _startAi() {
-    if (_isAiActive) return;
-
-    setState(() {
-      _isAiActive = true;
-      _isBaseOpen = true;
-      _isInBase = true;
-      _currentTimerSeconds = _baseTimerSeconds;
-    });
-
-    _addLog("AI STARTED. Initializing sequence...");
-    _addLog("Status: In Base, Base Open.");
-
-    // Start Money Collection Loop
-    _collectionTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
-      _collectMoney();
-    });
-
-    // Start Base Timer Countdown
-    _baseTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        if (_currentTimerSeconds > 0) {
-          _currentTimerSeconds--;
-        } else {
-          _handleTimerExpiry();
-        }
-      });
-    });
-  }
-
-  void _stopAllActions() {
-    _collectionTimer?.cancel();
-    _baseTimer?.cancel();
-    setState(() {
-      _isAiActive = false;
-    });
-    _addLog("AI STOPPED. All actions halted.");
-  }
-
-  void _collectMoney() {
-    if (!_isInBase) return; // Can't collect if not in base (assumption)
+  void _generateScript() {
+    // Logic to build the Lua script string
+    StringBuffer sb = StringBuffer();
     
-    // Simulate collecting random amount
-    int amount = 100 + (DateTime.now().millisecond % 50); 
+    sb.writeln("-- [[ BRAINROT AI CONTROLLER - GENERATED SCRIPT ]]");
+    sb.writeln("-- Copy this code into your executor");
+    sb.writeln("");
+    sb.writeln("local Players = game:GetService('Players')");
+    sb.writeln("local RunService = game:GetService('RunService')");
+    sb.writeln("local LocalPlayer = Players.LocalPlayer");
+    sb.writeln("");
+    sb.writeln("-- CONFIGURATION");
+    sb.writeln("local CONFIG = {");
+    sb.writeln("    AutoCollect = ${_autoCollect.toString()},");
+    sb.writeln("    CollectInterval = ${_collectionInterval.toStringAsFixed(1)},");
+    sb.writeln("    AutoCloseBase = ${_autoCloseBase.toString()},");
+    sb.writeln("    BaseTimerSeconds = ${(_baseTimerMinutes * 60).toInt()},");
+    sb.writeln("    AutoLeaveOnJoin = ${_autoLeaveOnJoin.toString()},");
+    sb.writeln("    RemoteName = '${_remoteNameController.text}' -- Verify this name with RemoteSpy");
+    sb.writeln("}");
+    sb.writeln("");
+    sb.writeln("-- 1. MONEY COLLECTION LOOP");
+    sb.writeln("spawn(function()");
+    sb.writeln("    while CONFIG.AutoCollect do");
+    sb.writeln("        wait(CONFIG.CollectInterval)");
+    sb.writeln("        pcall(function()");
+    sb.writeln("            -- Attempt to find the remote if it exists in ReplicatedStorage");
+    sb.writeln("            local remote = game:GetService('ReplicatedStorage'):FindFirstChild(CONFIG.RemoteName, true)");
+    sb.writeln("            if remote and remote:IsA('RemoteEvent') then");
+    sb.writeln("                remote:FireServer()");
+    sb.writeln("                print('[AI] Collected Money')");
+    sb.writeln("            end");
+    sb.writeln("        end)");
+    sb.writeln("    end");
+    sb.writeln("end)");
+    sb.writeln("");
+    sb.writeln("-- 2. BASE TIMER");
+    sb.writeln("if CONFIG.AutoCloseBase then");
+    sb.writeln("    spawn(function()");
+    sb.writeln("        print('[AI] Base Timer Started: ' .. CONFIG.BaseTimerSeconds .. 's')");
+    sb.writeln("        wait(CONFIG.BaseTimerSeconds)");
+    sb.writeln("        print('[AI] Timer Expired! Closing Base...')");
+    sb.writeln("        -- Add specific base closing logic here (e.g., touching a button)");
+    sb.writeln("        -- Example: fireTouchInterest(game.Workspace.Base.DoorButton)");
+    sb.writeln("    end)");
+    sb.writeln("end");
+    sb.writeln("");
+    sb.writeln("-- 3. PLAYER JOIN SAFETY");
+    sb.writeln("if CONFIG.AutoLeaveOnJoin then");
+    sb.writeln("    Players.PlayerAdded:Connect(function(newPlayer)");
+    sb.writeln("        print('[AI] ALERT: ' .. newPlayer.Name .. ' joined!')");
+    sb.writeln("        LocalPlayer:Kick('[AI] Safety Protocol Triggered: Player Joined')");
+    sb.writeln("    end)");
+    sb.writeln("end");
+    sb.writeln("");
+    sb.writeln("print('[AI] SYSTEM ONLINE')");
+
     setState(() {
-      _moneyCollected += amount;
+      _generatedScript = sb.toString();
     });
-    _addLog("Collected \$$amount from Brainrot.");
   }
 
-  void _handleTimerExpiry() {
-    _baseTimer?.cancel();
-    _closeBase();
-  }
-
-  void _closeBase() {
-    if (!_isBaseOpen) return;
-    setState(() {
-      _isBaseOpen = false;
-    });
-    _addLog("TIMER EXPIRED. Closing Base to secure loot.");
-  }
-
-  void _leaveBase() {
-    if (!_isInBase) return;
-    setState(() {
-      _isInBase = false;
-    });
-    _addLog("Leaving Base immediately.");
-  }
-
-  // Simulation Triggers
-  void _simulatePlayerJoin() {
-    _addLog("ALERT: New Player Joined Server!");
-    
-    if (_isInBase) {
-      _leaveBase();
-    }
-    
-    _stopAllActions();
-    _addLog("SAFETY PROTOCOL: Disconnected to avoid detection.");
+  void _copyToClipboard() {
+    Clipboard.setData(ClipboardData(text: _generatedScript));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Script copied to clipboard!"),
+        backgroundColor: Colors.green,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("STEAL A BRAINROT // AI CONTROL"),
+        title: const Text("AI SCRIPT GENERATOR"),
         backgroundColor: Colors.black,
-        elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              _stopAllActions();
-              setState(() {
-                _moneyCollected = 0;
-                _logs.clear();
-                _isBaseOpen = true;
-                _isInBase = true;
-                _currentTimerSeconds = _baseTimerSeconds;
-              });
-              _addLog("System Reset.");
-            },
+            icon: const Icon(Icons.code),
+            onPressed: () {}, 
           )
         ],
       ),
-      body: Column(
-        children: [
-          // Status Dashboard
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: Colors.black54,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildStatusCard("STATUS", _isAiActive ? "RUNNING" : "IDLE", _isAiActive ? Colors.green : Colors.grey),
-                _buildStatusCard("MONEY", "\$$_moneyCollected", Colors.amber),
-                _buildStatusCard("TIMER", "${_currentTimerSeconds}s", _currentTimerSeconds < 10 ? Colors.red : Colors.blue),
-              ],
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHeader("CONFIGURATION"),
+            const SizedBox(height: 10),
+            
+            // Auto Collect Settings
+            _buildSwitchTile(
+              "Auto Collect Money", 
+              "Repeatedly fires collection events", 
+              _autoCollect, 
+              (v) => setState(() => _autoCollect = v)
             ),
-          ),
-          
-          const Divider(height: 1, color: Colors.white24),
-
-          // Detailed State
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                Expanded(child: _buildStateIndicator("Base Status", _isBaseOpen ? "OPEN" : "CLOSED", _isBaseOpen ? Colors.green : Colors.red)),
-                const SizedBox(width: 10),
-                Expanded(child: _buildStateIndicator("Location", _isInBase ? "IN BASE" : "LEFT BASE", _isInBase ? Colors.blue : Colors.orange)),
-              ],
-            ),
-          ),
-
-          // Logs Area
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF111111),
-                border: Border.all(color: Colors.green.withOpacity(0.3)),
-                borderRadius: BorderRadius.circular(8),
+            if (_autoCollect)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Collection Interval (seconds)", style: TextStyle(color: Colors.grey)),
+                    Slider(
+                      value: _collectionInterval,
+                      min: 0.1,
+                      max: 5.0,
+                      divisions: 49,
+                      label: "${_collectionInterval.toStringAsFixed(1)}s",
+                      activeColor: const Color(0xFF00FF41),
+                      onChanged: (v) => setState(() => _collectionInterval = v),
+                    ),
+                  ],
+                ),
               ),
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.all(8),
-                itemCount: _logs.length,
-                itemBuilder: (context, index) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Text(
-                      _logs[index],
+
+            const Divider(color: Colors.white24),
+
+            // Base Timer Settings
+            _buildSwitchTile(
+              "Auto Close Base", 
+              "Triggers base closure after timer", 
+              _autoCloseBase, 
+              (v) => setState(() => _autoCloseBase = v)
+            ),
+            if (_autoCloseBase)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Timer Duration (minutes)", style: TextStyle(color: Colors.grey)),
+                    Slider(
+                      value: _baseTimerMinutes,
+                      min: 1,
+                      max: 30,
+                      divisions: 29,
+                      label: "${_baseTimerMinutes.toInt()} min",
+                      activeColor: Colors.amber,
+                      onChanged: (v) => setState(() => _baseTimerMinutes = v),
+                    ),
+                  ],
+                ),
+              ),
+
+            const Divider(color: Colors.white24),
+
+            // Safety Settings
+            _buildSwitchTile(
+              "Safety Protocol", 
+              "Leave server when player joins", 
+              _autoLeaveOnJoin, 
+              (v) => setState(() => _autoLeaveOnJoin = v)
+            ),
+
+            const SizedBox(height: 20),
+            
+            // Generate Button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _generateScript,
+                icon: const Icon(Icons.terminal),
+                label: const Text("GENERATE LUA SCRIPT"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00FF41),
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Output Area
+            if (_generatedScript.isNotEmpty) ...[
+              _buildHeader("GENERATED CODE"),
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF111111),
+                  border: Border.all(color: Colors.white24),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SelectableText(
+                      _generatedScript,
                       style: const TextStyle(
                         fontFamily: 'Courier',
-                        fontSize: 12,
                         color: Colors.greenAccent,
+                        fontSize: 12,
                       ),
                     ),
-                  );
-                },
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: _copyToClipboard,
+                        icon: const Icon(Icons.copy, size: 16),
+                        label: const Text("COPY CODE"),
+                        style: TextButton.styleFrom(foregroundColor: Colors.white),
+                      ),
+                    )
+                  ],
+                ),
               ),
-            ),
-          ),
-
-          // Controls
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: _isAiActive ? null : _startAi,
-                        icon: const Icon(Icons.play_arrow),
-                        label: const Text("START AI"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green.withOpacity(0.2),
-                          foregroundColor: Colors.green,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: !_isAiActive ? null : _stopAllActions,
-                        icon: const Icon(Icons.stop),
-                        label: const Text("STOP AI"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red.withOpacity(0.2),
-                          foregroundColor: Colors.red,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                const Text("SIMULATION TRIGGERS", style: TextStyle(color: Colors.grey, fontSize: 10)),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _simulatePlayerJoin,
-                        style: OutlinedButton.styleFrom(foregroundColor: Colors.orange),
-                        child: const Text("SIMULATE PLAYER JOIN"),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusCard(String label, String value, Color color) {
-    return Column(
-      children: [
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 10)),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            color: color,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            fontFamily: 'Courier',
-          ),
+            ],
+          ],
         ),
-      ],
+      ),
     );
   }
 
-  Widget _buildStateIndicator(String label, String value, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        border: Border.all(color: color.withOpacity(0.5)),
-        borderRadius: BorderRadius.circular(4),
+  Widget _buildHeader(String title) {
+    return Text(
+      title,
+      style: const TextStyle(
+        color: Color(0xFF00FF41),
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.2,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: TextStyle(color: color.withOpacity(0.8), fontSize: 10)),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
+    );
+  }
+
+  Widget _buildSwitchTile(String title, String subtitle, bool value, Function(bool) onChanged) {
+    return SwitchListTile(
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+      value: value,
+      activeColor: const Color(0xFF00FF41),
+      contentPadding: EdgeInsets.zero,
+      onChanged: onChanged,
     );
   }
 }
